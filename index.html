@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UG-Chinese Teaching Command Centre</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#003262">
+    <link rel="apple-touch-icon" href="icon-192.png">
+
+    <script src="js/xlsx.full.min.js"></script>
+    <script src="js/exceljs.min.js"></script>
+    <script src="js/FileSaver.min.js"></script>
+    <script src="js/qrcode.min.js"></script>
+    <script src="js/html2canvas.min.js"></script>
+    <script src="js/jspdf.umd.min.js"></script>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div id="auth-overlay">
+        <h1 style="margin-bottom: 5px; text-transform: uppercase; letter-spacing: 2px;">Teaching Command Centre</h1>
+        <p style="margin-top:0; opacity:0.8; margin-bottom:30px;">Dept. of African and Asian Languages</p>
+        <div id="auth-login-box" class="auth-box">
+            <h2 style="color:var(--ug-blue); margin-top:0;">System Access</h2>
+            <p style="color:#666; font-size:0.9rem;">Enter your 5-digit PIN</p>
+            <div class="auth-input-wrap">
+                <input type="password" id="login-pin" class="auth-input" maxlength="5" placeholder="•••••" onkeyup="if(event.key==='Enter') authApp.login()">
+                <span class="auth-eye" onclick="authApp.toggleEye('login-pin')">👁️</span>
+            </div>
+            <button class="auth-btn" onclick="authApp.login()">UNLOCK SYSTEM</button>
+        </div>
+        <div id="auth-setup-box" class="auth-box hidden-app">
+            <h2 style="color:var(--ug-blue); margin-top:0;">System Setup</h2>
+            <p style="color:#666; font-size:0.9rem;">Create a 5-digit PIN to secure your data.</p>
+            <div class="auth-input-wrap">
+                <input type="password" id="setup-pin" class="auth-input" maxlength="5" placeholder="Enter PIN">
+                <span class="auth-eye" onclick="authApp.toggleEye('setup-pin')">👁️</span>
+            </div>
+            <div class="auth-input-wrap">
+                <input type="password" id="setup-pin-confirm" class="auth-input" maxlength="5" placeholder="Confirm PIN">
+                <span class="auth-eye" onclick="authApp.toggleEye('setup-pin-confirm')">👁️</span>
+            </div>
+            <button class="auth-btn" onclick="authApp.setup()">SET PIN & START</button>
+        </div>
+    </div>
+
+    <div id="main-app" class="hidden-app">
+        <nav class="main-nav">
+            <div class="nav-brand">
+                <span class="nav-brand-main" id="sys-name-display">TEACHING COMMAND CENTRE</span>
+                <span class="nav-brand-sub">Dept. of African and Asian Languages</span>
+            </div>
+            <div style="display:flex; align-items:center;">
+               <div class="nav-tabs">
+                    <button class="nav-tab active" onclick="switchView('dashboard')">Teaching Dashboard</button>
+                    <button class="nav-tab" onclick="switchView('database')">Student Database</button>
+                    <button class="nav-tab" onclick="switchView('attendance')">Class Attendance</button>
+                    <button class="nav-tab" onclick="switchView('ta')">TA Portal</button>
+                    <button class="nav-tab" onclick="switchView('chisag')" style="border-left:1px solid rgba(255,255,255,0.2); color:var(--ug-gold);">CHISAG System</button>
+                </div>
+                <div class="sys-dropdown">
+                    <button class="sys-btn">System Menu <span>▼</span></button>
+                    <div class="sys-menu-content">
+                        <button onclick="setupApp.startNew()">⚠ Create New Semester</button>
+                        <button onclick="setupApp.openArchiveModal()">📥 Archive Current Semester</button>
+                        <hr style="margin:5px 0; border:0; border-top:1px solid #eee;">
+                        <button onclick="archiveViewApp.open()">📜 View Archives</button>
+                        <button onclick="backupApp.openModal()">⚙️ Backup / Restore</button>
+                        <button onclick="setupApp.open(true)">✎ Edit System Layout</button>
+                        <button onclick="authApp.logout()" style="color:var(--danger); border-top:1px solid #eee; font-weight:bold;">⏻ Logout</button>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <div id="view-dashboard" class="view-container active">
+            <div class="db-banner">
+                <div><h2 id="cd-title" style="margin:0; font-size:1.4rem;">Loading...</h2><p id="cd-subtitle" style="margin:5px 0 0 0; opacity:0.9;">Checking calendar...</p></div>
+                <div id="cd-badge" class="badge bg-green" style="font-size:1.2rem; padding:10px 20px;">--</div>
+            </div>
+            <div style="margin-bottom:30px;"><div class="section-title">Semester Overview</div><div id="dash-grid" class="course-grid"></div></div>
+            <div style="margin-bottom:30px;"><div class="section-title">Weekly Tasks</div><div id="schedule-container"></div></div>
+            <div id="fab-note" title="Sticky Notes"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></div>
+        </div>
+
+        <div id="view-attendance" class="view-container">
+            <div class="dash-cards">
+                <div class="stat-card"><h3>Course</h3><div class="value" id="card-course">...</div></div>
+                <div class="stat-card"><h3>Week</h3><div class="value" id="card-week">...</div></div>
+                <div class="stat-card gold"><h3>Present Today</h3><div class="value" id="card-present">0</div></div>
+            </div>
+            <div class="att-toolbar">
+                <div class="ctl-group"><label>Course</label><select id="course-select" onchange="attApp.updateContext()"></select></div>
+                <div class="ctl-group"><label>Week</label><div style="display:flex; align-items:center;"><select id="week-select" onchange="attApp.updateContext()"></select><div id="curr-week-indicator" class="curr-week-badge" style="background:var(--ug-blue); color:white;"></div></div></div>
+                <div class="ctl-group" style="min-width: 200px;"><label>Search List</label><input type="text" id="att-search" placeholder="Filter by Name or ID..." onkeyup="attApp.renderTable()" style="width: 100%;"></div>
+                <div class="ctl-group" style="flex-grow: 1;"><label>Manual Check-in</label><div style="display: flex; gap:5px;"><input type="text" id="manual-checkin" placeholder="Type Index ID..." style="flex-grow:1"><button class="btn btn-gold" onclick="attApp.manualCheckIn()">Add</button></div></div>
+                <div class="ctl-group"><label>Actions</label><div style="display:flex; gap:10px;"><button class="btn btn-danger" onclick="attApp.toggleManageMode()">Manage</button><button class="btn btn-dark" onclick="attApp.openQRModal()">📷 Scan / Upload</button><button class="btn btn-gold" onclick="attApp.openLogViewer()">📂 View Raw Data</button><button class="btn btn-gold" onclick="attApp.downloadReport()">Download Report</button></div></div>
+            </div>
+            <div id="att-manage-bar" class="manage-bar" style="display:none;">
+                <div><strong style="color:var(--danger)">MANAGE MODE:</strong> Select students to modify.</div>
+                <div style="display:flex; gap:10px;"><button class="btn btn-danger" onclick="attApp.resetSelected()">Reset Present</button><button class="btn btn-danger" style="background:#800000;" onclick="attApp.deleteSelectedEntries()">Remove from Course</button><button class="btn btn-reset" onclick="attApp.toggleManageMode()">Cancel</button></div>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;"><div style="display:flex; align-items:center; gap:10px;"><input type="checkbox" id="present-sort-check" onchange="attApp.renderTable()"><label for="present-sort-check" style="font-weight:bold; color:var(--ug-blue); cursor:pointer;">Filter: Show Present First</label></div><div style="font-size:0.85rem; color:#666; font-style:italic;">Tip: Click a name to edit it.</div></div>
+            <div class="att-table-wrap">
+                <table class="att-table" id="main-table">
+                    <thead><tr><th width="40" id="att-th-check" style="display:none;"><input type="checkbox" onchange="attApp.toggleSelectAll(this)"></th><th width="50">#</th><th width="120" onclick="attApp.sortData('id')">Index ID <span id="sort-icon-att-id" class="sort-arrow sort-none"></span></th><th onclick="attApp.sortData('name')">Student Name <span id="sort-icon-att-name" class="sort-arrow sort-asc"></span></th><th width="100" onclick="attApp.sortData('total')">Sem. Total <span id="sort-icon-att-total" class="sort-arrow sort-none"></span></th><th width="200" onclick="attApp.sortData('status')">Status <span id="sort-icon-att-status" class="sort-arrow sort-none"></span></th></tr></thead>
+                    <tbody id="att-table-body"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="view-database" class="view-container">
+            <div class="section-title">Master Student Database</div>
+            <div class="db-stats-bar"><div class="db-stat-box"><div>Total Students</div><div id="stat-total">0</div></div><div class="db-stat-box"><div>Level 100</div><div id="stat-100">0</div></div><div class="db-stat-box"><div>Level 200</div><div id="stat-200">0</div></div><div class="db-stat-box"><div>Level 300</div><div id="stat-300">0</div></div><div class="db-stat-box"><div>Level 400</div><div id="stat-400">0</div></div></div>
+            <div id="db-filter-container" style="display:flex; gap:10px; margin-bottom:15px; align-items:center; flex-wrap:wrap;"></div>
+            <div id="db-delete-toolbar" class="manage-bar" style="display:none;"><div><strong style="color:var(--danger)">DELETE MODE:</strong> Select students to remove.</div><div style="display:flex; gap:10px;"><button class="btn btn-danger" onclick="dbView.deleteSelected()">Delete Selected</button><button class="btn btn-danger" style="background:#800000;" onclick="dbView.deleteAllInLevel()">Delete ALL (Current Level)</button><button class="btn btn-reset" onclick="dbView.toggleDeleteMode()">Cancel</button></div></div>
+            <div style="display: flex; justify-content: space-between; align-items: center;"><input type="text" style="width:70%; padding:10px; border:1px solid #ccc; border-radius:4px; margin-bottom:10px;" placeholder="Search Database by Name or ID..." onkeyup="dbView.search(this.value)"><span style="font-size: 0.85rem; color: #666; font-style: italic;">Hint: Click on name to edit</span></div>
+            <div class="att-table-wrap" style="max-height: 500px; overflow-y: auto;"><table class="att-table"><thead><tr><th width="40" id="th-check" style="display:none;"><input type="checkbox" onchange="dbView.toggleSelectAll(this)"></th><th width="50">#</th><th onclick="dbView.sort('id')">Index ID <span id="sort-icon-db-id" class="sort-arrow sort-none"></span></th><th onclick="dbView.sort('name')">Student Name <span id="sort-icon-db-name" class="sort-arrow sort-asc"></span></th><th>Level</th></tr></thead><tbody id="db-table-body"></tbody></table></div>
+        </div>
+
+        <div id="view-ta" class="view-container">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                <div class="section-title" style="margin:0">TA Management Portal</div>
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <button class="btn btn-gold" onclick="taApp.import()">+ Import TA Backup (JSON)</button>
+                    <div style="display:flex; gap:5px;">
+                         <input type="file" id="ta-file-input" style="display:none" onchange="taApp.handleFile(this)">
+                         <button class="btn btn-danger" onclick="document.getElementById('ta-file-input').value=''" style="font-size:0.8rem; padding:5px;">Clear File</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="ta-list-view"><div id="ta-list-container" class="course-grid"></div></div>
+            
+            <div id="ta-details-view" class="ta-detail-view">
+                <div class="ta-header">
+                    <div><h3 id="ta-det-name" style="margin:0; color:white;">TA Name</h3><span id="ta-det-id" style="font-size:0.8rem; opacity:0.8;">Index ID</span></div>
+                    <div style="display:flex; gap:10px;"><button class="btn btn-gold" onclick="taApp.openExport()">⬇ Export Data</button><button class="btn btn-reset" onclick="taApp.closeDetails()">Close View</button></div>
+                </div>
+                
+                <div class="ta-sub-nav"><div class="ta-sub-tab active" onclick="taApp.switchTab('overview')">Overview</div><div class="ta-sub-tab" onclick="taApp.switchTab('attendance')">Attendance</div><div class="ta-sub-tab" onclick="taApp.switchTab('grades')">Gradebook</div></div>
+                
+                <div id="ta-tab-overview" class="ta-pane active"><div class="ta-stat-grid" id="ta-stats"></div><h4 style="border-bottom:2px solid var(--ug-gold); display:inline-block; margin-bottom:15px; color:#555;">TASK PROGRESS (By Week)</h4><div id="ta-tasks-accordion"></div></div>
+                
+                <div id="ta-tab-attendance" class="ta-pane">
+                    <div style="display:flex; gap:10px; margin-bottom:15px; align-items:center;"><select id="ta-att-course" class="input-std" onchange="taApp.renderAtt()"></select><select id="ta-att-week" class="input-std" onchange="taApp.renderAtt()"></select><input type="text" id="ta-att-search" placeholder="Search Student..." class="input-std" style="flex-grow:1" onkeyup="taApp.renderAtt()"></div>
+                    <div id="ta-att-headcount" class="ta-headcount-bar"></div>
+                    <table class="att-table">
+                        <thead>
+                            <tr>
+                                <th onclick="taApp.sortAtt('id')">ID <span id="ta-sort-att-id" class="sort-arrow sort-none"></span></th>
+                                <th onclick="taApp.sortAtt('name')">Name <span id="ta-sort-att-name" class="sort-arrow sort-none"></span></th>
+                                <th onclick="taApp.sortAtt('total')">Sem Total <span id="ta-sort-att-total" class="sort-arrow sort-none"></span></th>
+                                <th onclick="taApp.sortAtt('status')">Status <span id="ta-sort-att-status" class="sort-arrow sort-none"></span></th>
+                            </tr>
+                        </thead>
+                        <tbody id="ta-att-body"></tbody>
+                    </table>
+                </div>
+                
+                <div id="ta-tab-grades" class="ta-pane">
+                    <div style="display:flex; gap:10px; margin-bottom:15px;"><select id="ta-grade-course" class="input-std" onchange="taApp.renderGrades()"></select><input type="text" id="ta-grade-search" placeholder="Search Student..." class="input-std" style="flex-grow:1" onkeyup="taApp.renderGrades()"></div>
+                    <div style="overflow-x:auto;"><table class="att-table"><thead id="ta-grade-head"></thead><tbody id="ta-grade-body"></tbody></table></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-chisag" class="view-container">
+            <div class="db-banner" style="background: linear-gradient(135deg, #003262 0%, #002244 100%); border-left: 5px solid var(--ug-gold);">
+                <div>
+                    <h2 style="margin:0; font-size:1.4rem; color:var(--ug-gold);">CHISAG Management</h2>
+                    <p style="margin:5px 0 0 0; opacity:0.9; color:white;">Chinese Students Association of Ghana</p>
+                </div>
+                <div style="text-align:right;">
+                    <div style="color:var(--ug-gold); font-weight:bold; font-size:2rem;" id="chisag-total-count">0</div>
+                    <div style="font-size:0.8rem; text-transform:uppercase;">Active Members</div>
+                </div>
+            </div>
+
+            <div class="db-stats-bar">
+                <div class="db-stat-box" style="cursor:pointer;" onclick="chisagApp.filterByLevel(100)"><div>Lvl 100</div><div id="chisag-lvl-100">0</div></div>
+                <div class="db-stat-box" style="cursor:pointer;" onclick="chisagApp.filterByLevel(200)"><div>Lvl 200</div><div id="chisag-lvl-200">0</div></div>
+                <div class="db-stat-box" style="cursor:pointer;" onclick="chisagApp.filterByLevel(300)"><div>Lvl 300</div><div id="chisag-lvl-300">0</div></div>
+                <div class="db-stat-box" style="cursor:pointer;" onclick="chisagApp.filterByLevel(400)"><div>Lvl 400</div><div id="chisag-lvl-400">0</div></div>
+                <div class="db-stat-box" style="cursor:pointer;" onclick="chisagApp.filterByLevel(0)"><div>Reset</div><div id="chisag-paid-count" style="color:var(--success);">0 Paid</div></div>
+            </div>
+
+            <div style="display: flex; gap: 15px; margin-bottom: 20px;">
+                <div style="flex-grow: 1; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                        <h3 style="margin:0; color:var(--ug-blue);">Member Management</h3>
+                        <div style="display:flex; gap:10px; align-items:center;">
+                            <div style="display:flex; gap:5px;">
+                                <input type="file" id="chisag-import-file" style="display:none;" accept=".xlsx" onchange="chisagApp.importFile(this)">
+                                <button class="btn btn-danger" style="font-size:0.8rem;" onclick="document.getElementById('chisag-import-file').value=''">Reset</button>
+                            </div>
+                            <button class="btn btn-danger" onclick="chisagApp.toggleManageMode()">Manage</button>
+                            <button class="btn btn-blue" onclick="document.getElementById('chisag-import-file').click()">⬆ Import Data</button>
+                            <button class="btn btn-gold" onclick="chisagApp.exportFile()">⬇ Export Excel</button>
+                        </div>
+                    </div>
+                    
+                    <div style="display:flex; gap:10px; align-items:center;">
+                        <input type="text" id="chisag-search-filter" placeholder="Search Members (Name or ID)..." style="flex-grow:1; padding:10px; border:1px solid #ccc; border-radius:4px;" onkeyup="chisagApp.render()">
+                        
+                        <div style="display:flex; gap:5px; border-left:1px solid #eee; padding-left:10px;">
+                            <input type="text" id="chisag-input-id" placeholder="Add Member (ID)" style="width:150px; padding:10px; border:1px solid #eee; border-radius:4px;" onkeyup="if(event.key==='Enter') chisagApp.lookup()">
+                            <button class="btn btn-gold" onclick="chisagApp.lookup()">+</button>
+                        </div>
+                    </div>
+
+                    <div id="chisag-delete-controls" style="display:none; margin-top:10px; padding:10px; background:var(--danger-light); border:1px solid #ffcdd2; border-radius:4px;">
+                        <strong style="color:var(--danger)">DELETE MODE:</strong> Selected members will be removed.
+                        <button class="btn btn-danger" style="margin-left:10px;" onclick="chisagApp.deleteSelected()">Delete Selected</button>
+                        <button class="btn btn-reset" onclick="chisagApp.toggleManageMode()">Cancel</button>
+                    </div>
+                </div>
+                <div style="width: 300px; background: #fffdf0; padding: 20px; border-radius: 8px; border: 1px solid var(--ug-gold-light);">
+                    <h4 style="margin-top:0; color:var(--ug-blue);">🎉 Monthly Birthdays</h4>
+                    <div id="chisag-bday-list" style="max-height:100px; overflow-y:auto; font-size:0.9rem;"></div>
+                </div>
+            </div>
+
+            <div class="att-table-wrap">
+                <table class="att-table">
+                    <thead>
+                        <tr>
+                            <th id="chisag-th-check" style="display:none; width:40px;"><input type="checkbox" onchange="chisagApp.toggleSelectAll(this)"></th>
+                            <th>No.</th>
+                            <th>Picture</th>
+                            <th style="cursor:pointer;" onclick="chisagApp.sort('id')">ID ↕</th>
+                            <th style="cursor:pointer;" onclick="chisagApp.sort('surname')">Surname ↕</th>
+                            <th style="cursor:pointer;" onclick="chisagApp.sort('otherNames')">Other Names ↕</th>
+                            <th style="cursor:pointer;" onclick="chisagApp.sort('level')">Level ↕</th>
+                            <th style="cursor:pointer;" onclick="chisagApp.sort('dues')">Dues ↕</th>
+                            <th>Souv. Paid</th>
+                            <th>Souv. Taken</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="chisag-table-body"></tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <div id="chisag-member-modal" class="modal">
+        <div class="modal-content" style="width:600px;">
+            <span class="modal-close" onclick="document.getElementById('chisag-member-modal').style.display='none'">&times;</span>
+            <h2 style="color:var(--ug-blue);">Member Details</h2>
+            <div style="display:grid; grid-template-columns: 1fr 2fr; gap:20px;">
+                <div style="text-align:center;">
+                    <div id="c-img-preview" style="width:120px; height:120px; background:#eee; border-radius:50%; margin:0 auto 10px auto; overflow:hidden; border:3px solid var(--ug-blue); display:flex; align-items:center; justify-content:center;">
+                        <span style="color:#999; font-size:3rem;">📷</span>
+                    </div>
+                    <button class="btn btn-reset" onclick="document.getElementById('c-mod-pic').click()" style="font-size:0.8rem;">Upload Photo</button>
+                    <div style="margin-top:5px; display:flex; justify-content:center; gap:5px;">
+                        <input type="file" id="c-mod-pic" style="display:none" accept="image/*" onchange="chisagApp.handleImageUpload(this)">
+                        <button class="btn btn-danger" style="font-size:0.7rem; padding:2px 5px;" onclick="document.getElementById('c-mod-pic').value=''; chisagApp.currentImg=''; chisagApp.updateImagePreview();">X</button>
+                    </div>
+                </div>
+                <div style="background:#f8fafc; padding:15px; border-radius:6px; border:1px solid #e2e8f0;">
+                    <div class="ctl-group" style="margin-bottom:10px;">
+                        <label>Index ID</label>
+                        <input type="text" id="c-mod-id" readonly style="background:#e9ecef; font-weight:bold;">
+                    </div>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:10px;">
+                        <div class="ctl-group"><label>Surname</label><input type="text" id="c-mod-surname"></div>
+                        <div class="ctl-group"><label>Other Names</label><input type="text" id="c-mod-othernames"></div>
+                    </div>
+                    <div class="ctl-group" style="margin-bottom:10px;">
+                        <label>Level</label>
+                        <select id="c-mod-level">
+                            <option value="100">100</option>
+                            <option value="200">200</option>
+                            <option value="300">300</option>
+                            <option value="400">400</option>
+                        </select>
+                    </div>
+                    <div class="ctl-group" style="margin-bottom:10px;">
+                        <label>Email</label>
+                        <input type="email" id="c-mod-email">
+                    </div>
+                    <div class="ctl-group" style="margin-bottom:10px;">
+                        <label>Birthday (Day - Month)</label>
+                        <div style="display:flex; gap:10px;">
+                            <select id="c-mod-dob-day" style="flex:1;"><option value="">Day</option></select>
+                            <select id="c-mod-dob-month" style="flex:2;">
+                                <option value="">Month</option>
+                                <option value="Jan">January</option><option value="Feb">February</option><option value="Mar">March</option>
+                                <option value="Apr">April</option><option value="May">May</option><option value="Jun">June</option>
+                                <option value="Jul">July</option><option value="Aug">August</option><option value="Sep">September</option>
+                                <option value="Oct">October</option><option value="Nov">November</option><option value="Dec">December</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="display:flex; flex-wrap:wrap; gap:15px; margin-top:15px; border-top:1px solid #eee; padding-top:10px;">
+                        <label><input type="checkbox" id="c-mod-dues"> Dues Paid</label>
+                        <label><input type="checkbox" id="c-mod-souv-paid"> Souv. Paid</label>
+                        <label><input type="checkbox" id="c-mod-souv-taken"> Souv. Taken</label>
+                    </div>
+                </div>
+            </div>
+            <div style="display:flex; justify-content:space-between; margin-top:20px;">
+                <button class="btn btn-danger" onclick="chisagApp.deleteMember()">Delete Member</button>
+                <button class="btn btn-gold" onclick="chisagApp.saveMember()">Save Member</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="picture-modal" class="modal" onclick="this.style.display='none'">
+        <div class="modal-content" id="picture-modal-content">
+            <img id="picture-modal-img" src="" alt="Enlarged Student Photo">
+        </div>
+    </div>
+
+    <div id="chisag-qr-modal" class="modal">
+        <div class="modal-content" style="width:400px; text-align:center; background: transparent; box-shadow: none;">
+            <span class="modal-close" onclick="document.getElementById('chisag-qr-modal').style.display='none'" style="background:white; color:black; font-weight:bold;">&times;</span>
+            <div id="printable-id-card" class="id-card-container">
+                <div class="id-card-header">
+                    <div class="id-card-watermark">UG</div>
+                </div>
+                <div class="id-card-photo-wrapper" id="qr-card-photo"></div>
+                <div class="id-card-body">
+                    <h2 class="id-card-name" id="qr-name-display"></h2>
+                    <p class="id-card-id" id="qr-id-display"></p>
+                    <div class="id-card-level-badge" id="qr-level-display"></div>
+                    <div class="id-card-qr-box">
+                        <div id="qr-display-area"></div>
+                    </div>
+                    <span class="id-card-qr-label">TUTORIAL ATTENDANCE ID</span>
+                </div>
+                <div class="id-card-footer">
+                    UNIVERSITY OF GHANA • CHINESE SECTION
+                </div>
+            </div>
+            <div style="margin-top:20px; display:flex; gap:10px; justify-content:center;">
+                <button class="btn btn-gold" onclick="chisagApp.downloadPDF()" style="flex-grow:1;">Download PDF (Centered A4)</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="ta-export-modal" class="modal"><div class="modal-content"><span class="modal-close" onclick="document.getElementById('ta-export-modal').style.display='none'">&times;</span><h2 style="color:var(--ug-blue);">Export TA Data</h2><div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;"><div style="border:1px solid #eee; padding:10px; border-radius:4px;"><label style="font-weight:bold; display:block; margin-bottom:10px;">Select Courses</label><div id="ta-exp-courses" style="max-height:200px; overflow-y:auto;"></div></div><div style="border:1px solid #eee; padding:10px; border-radius:4px;"><label style="font-weight:bold; display:block; margin-bottom:10px;">Select Weeks</label><div id="ta-exp-weeks" style="max-height:200px; overflow-y:auto;"></div></div></div><div style="margin-top:20px; display:flex; gap:15px;"><button class="btn btn-gold w-full" onclick="taApp.runExport('excel')">Download Excel</button><button class="btn btn-dark w-full" onclick="taApp.runExport('json')">Download JSON</button></div></div></div>
+    
+    <div id="setup-modal" class="modal" style="display:none;">
+        <div class="modal-content" style="max-height:90vh; overflow-y:auto;">
+            <span class="modal-close" onclick="document.getElementById('setup-modal').style.display='none'">&times;</span>
+            <h2 style="color:var(--ug-blue); border-bottom:1px solid #eee; padding-bottom:10px;">System Configuration</h2>
+            
+            <div id="wiz-step-1" class="wiz-step active">
+                <h3>System Name</h3>
+                <div class="ctl-group" style="margin-bottom:15px;"><input type="text" id="wiz-sys-name" value="Teaching Command Centre" style="width:100%; padding:12px; font-size:1.1rem; border:1px solid #ccc; border-radius:4px;"></div>
+                <h3>Select Semester</h3>
+                <div class="ctl-group" style="margin-bottom:15px;"><select id="wiz-sem-select" style="width:100%; padding:12px; font-size:1.1rem;" onchange="setupApp.loadCoursesForSem()"><option value="1">First Semester</option><option value="2">Second Semester</option></select></div>
+                <h3>Semester Duration (Weeks)</h3>
+                <div class="ctl-group" style="margin-bottom:15px;"><input type="number" id="wiz-weeks" value="12" min="10" max="20" style="width:100%; padding:12px; font-size:1.1rem;"></div>
+            </div>
+
+            <div id="wiz-step-2" class="wiz-step">
+                <h3>Select Courses You Teach</h3>
+                <p style="font-size:0.9rem; color:#666;">These will appear on your Teaching Dashboard.</p>
+                <div class="wiz-course-grid" id="wiz-teach-list" style="display:grid; grid-template-columns: repeat(3, 1fr); gap:10px;"></div>
+            </div>
+
+            <div id="wiz-step-3" class="wiz-step">
+                <h3>Select Attendance Classes</h3>
+                <p style="font-size:0.9rem; color:#666;">Select classes and their <strong>First Day of Class</strong> to configure dates.</p>
+                <div style="max-height: 400px; overflow-y: auto; border: 1px solid #eee; padding: 15px; margin-bottom: 20px;">
+                    <div id="wiz-att-list"></div>
+                </div>
+            </div>
+
+            <div style="display:flex; justify-content:space-between; margin-top:20px; border-top:1px solid #eee; padding-top:20px;">
+                <button class="btn btn-reset" id="wiz-btn-back" onclick="setupApp.prevStep()" style="display:none; padding:12px 25px; font-size:1rem;">← Back</button>
+                <div style="flex-grow:1;"></div>
+                <button class="btn btn-gold" id="wiz-btn-next" onclick="setupApp.nextStep()" style="padding:12px 25px; font-size:1rem;">Next: Select Courses →</button>
+                <button class="btn btn-gold" id="wiz-btn-finish" onclick="setupApp.finish()" style="display:none; padding:12px 25px; font-size:1rem;">✓ Finish & Build System</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="archive-modal" class="modal"><div class="modal-content"><span class="modal-close" onclick="document.getElementById('archive-modal').style.display='none'">&times;</span><h2 style="color:var(--ug-blue); margin-top:0;">Archive & Reset</h2><div style="background:#fff3cd; color:#856404; padding:10px; border-radius:4px; font-size:0.9rem; margin-bottom:15px;"><strong>Warning:</strong> This will save current data to Archives and wipe the system for a new semester.</div><p>Enter details for the semester you are closing.</p><div style="text-align:left;"><label>Academic Year</label><input type="text" id="arc-year" placeholder="2025/2026" maxlength="9" oninput="setupApp.formatArchiveInput(this)"><label>Semester</label><select id="arc-sem"><option value="1">First Semester</option><option value="2">Second Semester</option></select></div><button class="btn btn-gold" style="width:100%; margin-top:15px;" onclick="setupApp.processArchive()">Archive & Reset System</button></div></div>
+    <div id="archive-view-modal" class="modal"><div class="modal-content"><span class="modal-close" onclick="document.getElementById('archive-view-modal').style.display='none'">&times;</span><h2 style="color:var(--ug-blue);">Archived Semesters</h2><div id="archive-list-container" style="max-height:400px; overflow-y:auto; margin-bottom:15px;"></div><button class="btn btn-reset" onclick="document.getElementById('archive-view-modal').style.display='none'" style="width:100%">Close</button></div></div>
+    <div id="master-backup-modal" class="modal"><div class="modal-content" style="max-height:90vh; display:flex; flex-direction:column;"><span class="modal-close" onclick="backupApp.closeModal()">&times;</span><h2 style="color:var(--ug-blue); margin-top:0;">System Data Manager</h2><div style="display:flex; gap:10px; border-bottom:1px solid #eee; margin-bottom:15px;"><button id="tab-backup" class="nav-tab" style="color:var(--text-dark); border-bottom:3px solid var(--ug-blue);" onclick="backupApp.switchTab('backup')">Create Backup</button><button id="tab-restore" class="nav-tab" style="color:var(--text-muted); border-bottom:3px solid transparent;" onclick="backupApp.switchTab('restore')">Restore Backup</button></div><div id="view-backup-panel" style="flex-grow:1; overflow-y:auto;"><p style="color:#666; font-size:0.9rem;">Select data to backup:</p><div class="sys-option-group"><div class="sys-option-header" onclick="backupApp.toggleSection('bk-db')">Student Database <span>▼</span></div><div id="bk-db" class="sys-option-body open"><div class="sys-grid"><label class="sys-check-label"><input type="checkbox" class="bk-check-db" value="100" checked> Lvl 100</label><label class="sys-check-label"><input type="checkbox" class="bk-check-db" value="200" checked> Lvl 200</label><label class="sys-check-label"><input type="checkbox" class="bk-check-db" value="300" checked> Lvl 300</label><label class="sys-check-label"><input type="checkbox" class="bk-check-db" value="400" checked> Lvl 400</label></div></div></div><div class="sys-option-group"><div class="sys-option-header" onclick="backupApp.toggleSection('bk-att')">Attendance Records <span>▼</span></div><div id="bk-att" class="sys-option-body open" style="padding:0;"></div></div><div class="sys-option-group"><div class="sys-option-header" onclick="backupApp.toggleSection('bk-task')">Dashboard Tasks <span>▼</span></div><div id="bk-task" class="sys-option-body open" style="padding:0;"></div></div><label style="display:block; margin-bottom:10px; font-weight:bold; cursor:pointer;"><input type="checkbox" id="bk-check-notes" checked> Include Sticky Notes</label><label style="display:block; margin-bottom:10px; font-weight:bold; cursor:pointer; color:var(--ug-blue);"><input type="checkbox" id="bk-check-ta" checked> Include TA Portal Data</label><label style="display:block; margin-bottom:10px; font-weight:bold; cursor:pointer; color:var(--ug-gold);"><input type="checkbox" id="bk-check-chisag" checked> Include CHISAG System Data</label><label style="display:block; margin-bottom:20px; font-weight:bold; cursor:pointer; color:var(--text-dark); background:#f0f8ff; padding:5px; border-radius:4px;"><input type="checkbox" id="bk-check-raw" checked> Include Raw Scan Logs</label><div class="sys-option-group"><div class="sys-option-header">Backup Format</div><div class="sys-option-body open" style="padding:10px;"><label style="margin-right:15px; cursor:pointer;"><input type="checkbox" id="bk-fmt-excel" checked> Excel (.xlsx)</label><label style="cursor:pointer;"><input type="checkbox" id="bk-fmt-json" checked> JSON (.json)</label></div></div><button class="btn btn-gold" style="width:100%; padding:15px; font-size:1.1rem;" onclick="backupApp.executeBackup()">⬇ Download Selected Backup(s)</button></div><div id="view-restore-panel" style="display:none; flex-grow:1; overflow-y:auto;"><div style="background:#fff3cd; color:#856404; padding:15px; border-radius:6px; margin-bottom:20px; border:1px solid #ffeeba;"><strong>Step 1:</strong> Select File (.xlsx or .json).<br><strong>Step 2:</strong> Choose data to restore.</div><input type="file" id="restore-file-input" accept=".json, .xlsx, .xls" style="width:100%; padding:15px; border:2px dashed #ccc; background:#f9f9f9; margin-bottom:20px;"><div id="restore-options-container" style="display:none;"><h3 style="color:var(--ug-blue); border-bottom:1px solid #eee; padding-bottom:5px;">File Contents</h3><div id="restore-dynamic-content"></div><button class="btn btn-danger" style="width:100%; padding:15px; font-size:1.1rem; margin-top:20px;" onclick="backupApp.executeRestore()">⬆ Restore Selected Data</button></div></div></div></div>
+    
+    <div id="scan-override-modal" class="modal">
+        <div class="modal-content" style="width:650px;">
+            <span class="modal-close" onclick="document.getElementById('scan-override-modal').style.display='none'">&times;</span>
+            <h2 style="color:var(--ug-blue); margin-top:0;">Attendance Analysis</h2>
+            
+            <div class="scan-stats-grid" style="grid-template-columns: repeat(5, 1fr); gap: 8px;">
+                <div class="scan-stat">
+                    <div class="label">Pasted</div>
+                    <div class="val" id="scan-stat-total">0</div>
+                </div>
+                <div class="scan-stat warning" style="border-color:#ffeeba; background:#fffdf0;">
+                    <div class="label" style="color:#856404;">Dupes</div>
+                    <div class="val" id="scan-stat-dupes" style="color:#856404;">0</div>
+                </div>
+                <div class="scan-stat">
+                    <div class="label">Valid</div>
+                    <div class="val" id="scan-stat-valid">0</div>
+                </div>
+                <div class="scan-stat warning" style="border-color:#ffeeba; background:#fffdf0;">
+                    <div class="label" style="color:#856404;">Out-Module</div>
+                    <div class="val" id="scan-stat-oom" style="color:#856404;">0</div>
+                </div>
+                <div class="scan-stat warning" style="border-color:#f5c6cb; background:#fef2f2;">
+                    <div class="label" style="color:#c0392b;">Unregistered</div>
+                    <div class="val" id="scan-stat-unreg" style="color:#c0392b;">0</div>
+                </div>
+            </div>
+            
+            <p style="margin:5px 0 10px 0; font-size:0.9rem;">Marking <strong>PRESENT</strong> for: <span id="scan-target-course" style="font-weight:bold; color:var(--ug-blue);"></span></p>
+
+            <div id="scan-out-of-module-container" style="display:none; background:#fff3cd; padding:10px; border-radius:6px; margin-bottom:15px; border:1px solid #ffeeba;">
+                <div style="font-weight:bold; color:#856404; margin-bottom:5px;">⚠️ Out-of-Module Students Detected</div>
+                <p style="margin:0 0 5px 0; font-size:0.85rem;">These students are in the database but not enrolled in the expected module (<span id="scan-expected-module"></span>). Check the box to add them to the class and mark present.</p>
+                <div style="max-height:100px; overflow-y:auto; border:1px solid #e2e8f0; background:white;">
+                    <table style="width:100%; font-size:0.85rem;">
+                        <thead style="background:#fff3cd; border-bottom:1px solid #e2e8f0; position:sticky; top:0;">
+                            <tr>
+                                <th style="padding:5px; text-align:left; width:30px;"><input type="checkbox" onchange="attApp.toggleOOMAll(this)"></th>
+                                <th style="padding:5px; text-align:left;">Select / Deselect All</th>
+                            </tr>
+                        </thead>
+                        <tbody id="scan-oom-body"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="scan-unreg-container" style="display:none; background:#f8d7da; padding:10px; border-radius:6px; margin-bottom:15px; border:1px solid #f5c6cb;">
+                <div style="font-weight:bold; color:#721c24; margin-bottom:5px;">🚨 Non-Registered Students Detected</div>
+                <p style="margin:0 0 5px 0; font-size:0.85rem;">These IDs are not in the main database at all. Check to add them to the database and mark present.</p>
+                <div style="max-height:100px; overflow-y:auto; border:1px solid #e2e8f0; background:white;">
+                    <table style="width:100%; font-size:0.85rem;">
+                        <thead style="background:#f8d7da; border-bottom:1px solid #e2e8f0; position:sticky; top:0;">
+                            <tr>
+                                <th style="padding:5px; text-align:left; width:30px;"><input type="checkbox" onchange="attApp.toggleUnregAll(this)"></th>
+                                <th style="padding:5px; text-align:left;">Select / Deselect All</th>
+                            </tr>
+                        </thead>
+                        <tbody id="scan-unreg-body"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="scan-sec-title">Valid Students (Auto-Selected)</div>
+            <div style="max-height:200px; overflow-y:auto; border:1px solid #ddd; border-radius:6px; margin-bottom:20px;">
+                <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                    <thead style="background:#f4f6f8; position:sticky; top:0;">
+                        <tr><th style="padding:8px;">ID</th><th style="padding:8px;">Name</th><th style="padding:8px; text-align:center;">Status</th></tr>
+                    </thead>
+                    <tbody id="scan-valid-body"></tbody>
+                </table>
+            </div>
+            
+            <div style="display:flex; justify-content:flex-end; gap:10px;">
+                <button class="btn btn-reset" onclick="document.getElementById('scan-override-modal').style.display='none'">Cancel</button>
+                <button class="btn btn-gold" onclick="attApp.saveScanOverrides()">✓ Confirm & Save Attendance</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="raw-log-modal" class="modal">
+        <div class="modal-content" style="width:800px; height:80vh;">
+            <span class="modal-close" onclick="document.getElementById('raw-log-modal').style.display='none'">&times;</span>
+            <h2 style="color:var(--ug-blue); margin-top:0;">Raw Scan Data Logs</h2>
+            <div class="att-toolbar" style="margin:0 0 15px 0; padding:10px; display:flex; gap:10px; align-items:flex-end;">
+                <div class="ctl-group"><label>Filter Course</label><select id="raw-filter-course" onchange="attApp.renderRawLogs()"><option value="">All Courses</option></select></div>
+                <div class="ctl-group"><label>Filter Week</label><select id="raw-filter-week" onchange="attApp.renderRawLogs()"><option value="">All Weeks</option></select></div>
+                <div class="ctl-group" style="flex-grow:1;"><label>Search Details</label><input type="text" id="raw-search" placeholder="Search raw content (ID, Name)..." onkeyup="attApp.renderRawLogs()"></div>
+                <div class="ctl-group"><button class="btn btn-danger" onclick="attApp.toggleRawManageMode()">Manage</button></div>
+            </div>
+            <div id="raw-manage-bar" class="manage-bar" style="display:none; margin: 0 0 15px 0; padding:10px;">
+                <div><strong style="color:var(--danger)">MANAGE MODE:</strong> Select logs to delete.</div>
+                <div style="display:flex; gap:10px;"><button class="btn btn-danger" onclick="attApp.deleteSelectedRawLogs()">Delete Selected</button><button class="btn btn-reset" onclick="attApp.toggleRawManageMode()">Cancel</button></div>
+            </div>
+            <div class="att-table-wrap" style="flex-grow:1; overflow-y:auto;">
+                <table class="att-table" style="table-layout: fixed; width: 100%;">
+                   <thead>
+                       <tr>
+                           <th id="raw-th-check" style="display:none; width:40px;"><input type="checkbox" onchange="attApp.toggleRawSelectAll(this)"></th>
+                           <th style="width: 160px; cursor:pointer;" onclick="attApp.sortRawLogs()">Course / Week <span id="sort-icon-raw-course" class="sort-arrow sort-asc"></span></th>
+                           <th style="width: 110px; text-align:center;">Total Entries</th>
+                           <th>Raw Content</th>
+                       </tr>
+                   </thead>
+                    <tbody id="raw-log-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="db-confirm-modal" class="modal"><div class="modal-content" style="width:500px;"><span class="modal-close" onclick="document.getElementById('db-confirm-modal').style.display='none'">&times;</span><h2 style="color:var(--ug-blue);">Confirm Import</h2><div id="db-select-list" style="max-height:300px; overflow-y:auto; border:1px solid #ddd; margin-bottom:20px; padding:10px;"></div><div style="text-align:right;"><button class="btn btn-gold" onclick="dbView.finalizeImport()">✓ Confirm & Add</button></div></div></div>
+    <div id="att-confirm-modal" class="modal"><div class="modal-content" style="width:500px;"><span class="modal-close" onclick="document.getElementById('att-confirm-modal').style.display='none'">&times;</span><h2 style="color:var(--ug-blue);">Confirm Restoration</h2><div id="att-select-list" style="max-height:300px; overflow-y:auto; border:1px solid #ddd; margin-bottom:20px; padding:10px;"></div><div style="text-align:right;"><button class="btn btn-gold" onclick="attApp.finalizeRestore()">✓ Restore</button></div></div></div>
+    <div id="db-import-modal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="dbView.closeImportModal()">&times;</span>
+            <h2 style="color:var(--ug-blue);">Import Database</h2>
+          <div id="db-step-1">
+                <div style="background:#f0f8ff; padding:15px; border-radius:6px; margin-bottom:15px; border:1px solid #bde0fe;">
+                    <label style="display:block; margin-bottom:5px; font-weight:bold; color:var(--ug-blue);">1. Select Level</label>
+                    <select id="imp-level-select" onchange="dbView.updateImportCourses()" style="width:100%; margin-bottom:15px; padding:8px; border-radius:4px; border:1px solid #ccc;">
+                        <option value="100">Level 100</option>
+                        <option value="200" selected>Level 200</option>
+                        <option value="300">Level 300</option>
+                        <option value="400">Level 400</option>
+                    </select>
+                    <label style="display:block; margin-bottom:5px; font-weight:bold; color:var(--ug-blue);">2. Select Course Module (Optional)</label>
+                    <select id="imp-course-select" style="width:100%; padding:8px; border-radius:4px; border:1px solid #ccc;">
+                        </select>
+                </div>
+                <p>Option A: Upload Excel <button class="btn btn-reset" style="padding:2px 8px; font-size:0.7rem;" onclick="dbView.resetFile()">Reset</button></p>
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <input type="file" id="db-import-file" accept=".xlsx, .xls, .csv, .txt" style="margin-bottom:10px;">
+                    <button class="btn btn-danger" onclick="document.getElementById('db-import-file').value=''">Reset</button>
+                </div>
+                <p>Option B: Paste List</p>
+                <textarea id="db-paste-area" class="qr-textarea"></textarea>
+                <div style="text-align:right; margin-top:20px;"><button class="btn btn-gold" onclick="dbView.previewImport()">Process</button></div>
+            </div>
+            <div id="db-step-2" style="display:none; text-align:center; padding:20px;"><h3 style="color:var(--success);">Success</h3><p><span id="import-new-stat">0</span> Students Added.</p><button class="btn btn-reset" onclick="dbView.closeImportModal()">Close</button></div>
+        </div>
+    </div>
+
+    <div id="db-export-modal" class="modal"><div class="modal-content" style="width:400px;"><span class="modal-close" onclick="document.getElementById('db-export-modal').style.display='none'">&times;</span><h2 style="color:var(--ug-blue);">Export Database</h2><div style="background:#f0f8ff; padding:20px; margin-bottom:20px;"><label style="display:block;"><input type="checkbox" name="exp-opt" value="100"> Level 100</label><label style="display:block;"><input type="checkbox" name="exp-opt" value="200" checked> Level 200</label><label style="display:block;"><input type="checkbox" name="exp-opt" value="300"> Level 300</label><label style="display:block;"><input type="checkbox" name="exp-opt" value="400" checked> Level 400</label></div><button class="btn btn-gold" style="width:100%;" onclick="dbView.executeExport()">Download</button></div></div>
+    <div id="qr-modal" class="modal"><div class="modal-content"><span class="modal-close" onclick="document.getElementById('qr-modal').style.display='none'">&times;</span><h2 style="color:var(--ug-blue);">Scan / Upload Attendance</h2><div style="background:#f8fafc; padding:15px; border-radius:6px; margin-bottom:15px; border:1px solid #e2e8f0;"><div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-bottom:15px;"><div style="border:1px solid #e2e8f0; padding:10px; border-radius:4px; max-height:150px; overflow-y:auto; background:white;"><label style="font-weight:bold; display:block; margin-bottom:5px; color:var(--text-dark);">Select Course(s):</label><div id="qr-course-checkboxes" style="display:flex; flex-direction:column; gap:5px;"></div></div><div style="border:1px solid #e2e8f0; padding:10px; border-radius:4px; max-height:150px; overflow-y:auto; background:white;"><label style="font-weight:bold; display:block; margin-bottom:5px; color:var(--text-dark);">Select Week(s):</label><div id="qr-week-checkboxes" style="display:flex; flex-direction:column; gap:5px;"></div></div></div><div id="qr-date-warning" style="display:none; color:#c0392b; font-size:0.85rem; margin-bottom:10px; padding:8px; background:#fef2f2; border:1px solid #fecaca; border-radius:4px;"></div><div style="border-top:1px solid #eee; padding-top:15px;"><p style="margin:0 0 5px 0; font-weight:bold; color:var(--ug-blue);">Paste List (Names/IDs):</p><textarea id="qr-input" class="qr-textarea" placeholder="Paste ID/Name list here..."></textarea><div style="display:flex; align-items:center; gap:10px; margin-top:15px; border-top:1px dashed #ccc; padding-top:10px;"><span style="font-size:0.9rem; font-weight:bold; color:#666;">OR Excel File:</span><input type="file" id="qr-upload-file" accept=".xlsx, .xls, .csv, .txt" style="flex-grow:1;"><button class="btn btn-danger" onclick="document.getElementById('qr-upload-file').value=''">Reset</button></div></div></div><button class="btn btn-gold" style="width:100%; margin-top:10px;" onclick="attApp.processQRData()">Process Upload</button></div></div>
+    <div id="edit-name-modal" class="modal"><div class="modal-content" style="width: 400px;"><span class="modal-close" onclick="editNameApp.close()">&times;</span><h2 style="color:var(--ug-blue);">Edit Name</h2><input type="text" id="edit-name-input" style="width:100%; padding:10px; font-size:1.1rem; margin-bottom:20px;"><input type="hidden" id="edit-id-hidden"><div style="text-align:right;"><button class="btn btn-gold" onclick="editNameApp.save()">Save</button></div></div></div>
+    <div id="new-student-modal" class="modal"><div class="modal-content"><span class="modal-close" onclick="attApp.closeModal()">&times;</span><h2 style="color:var(--ug-blue);">New Students</h2><div id="new-student-list" class="preview-list"></div><div style="display:flex; justify-content:flex-end; gap:10px; margin-top:10px;"><button class="btn btn-danger" onclick="attApp.closeModal()">Ignore</button><button class="btn btn-gold" onclick="attApp.confirmAddStudents()">Add & Mark</button></div></div></div>
+    <div id="note-modal" class="modal"><div class="modal-content" style="background:var(--note-bg); border-top:5px solid var(--ug-gold);"><div id="note-list-view"><div style="display:flex; justify-content:space-between; margin-bottom:15px;"><h2>Notes</h2><button class="btn btn-dark" onclick="noteApp.newNote()">+</button></div><div id="note-items-container" style="max-height:300px; overflow-y:auto;"></div><button class="btn btn-reset" style="margin-top:10px; width:100%;" onclick="noteApp.close()">Close</button></div><div id="note-edit-view" style="display:none; flex-direction:column;"><input type="text" id="edit-note-title" style="width:100%; padding:10px; margin-bottom:10px;" placeholder="Title"><textarea id="edit-note-body" style="width:100%; height:200px; padding:10px; background:var(--note-bg);"></textarea><div style="display:flex; justify-content:space-between; margin-top:15px;"><button class="btn btn-danger" onclick="noteApp.deleteNote()">Delete</button><div style="display:flex; gap:10px;"><button class="btn btn-reset" onclick="noteApp.showList()">Back</button><button class="btn btn-gold" onclick="noteApp.saveNote()">Save</button></div></div></div></div></div>
+
+    <script src="app.js"></script>
+</body>
+</html>
